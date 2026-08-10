@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=LazuliNet
+Comment=Cross-platform wireless discovery and diagnostics GUI
+Exec=LazuliNet
+Icon=lazulinet
+Terminal=false
+Categories=Network;Utility;
+StartupNotify=true

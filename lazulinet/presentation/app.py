@@ -703,6 +703,17 @@ class LazuliNetApp(App):
                 except TypeError:
                     pass
 
+    def on_start(self):
+        if os.environ.get("ANDROID_ARGUMENT"):
+            try:
+                from lazulinet.platform.android.wifi import request_wifi_permissions
+                Clock.schedule_once(lambda _dt: request_wifi_permissions(), 0.25)
+            except Exception as exc:
+                self.log(f"Android permission request unavailable: {exc}")
+
+    def on_pause(self):
+        return True
+
     def build(self):
         Clock.schedule_interval(self._poll_task_events, 0.15)
         Window.bind(size=self._on_window_size)

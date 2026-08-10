@@ -1,0 +1,208 @@
+name: LazuliNet Platform Builds
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "lazulinet/**"
+      - "main.py"
+      - "run_gui.py"
+      - "buildozer.spec"
+      - "pyproject.toml"
+      - "packaging/**"
+      - ".github/workflows/platform-builds.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux AppImage + DEB
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install runtime/build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgl1 libgles2 libmtdev1 libx11-6 libxext6 libxrender1 libxi6 libxrandr2 libxcursor1 libxinerama1 libxkbcommon0 libxkbcommon-x11-0 libdbus-1-3 libfuse2
+          python -m pip install --upgrade pip
+          python -m pip install 'kivy>=2.3.0,<3' 'pyinstaller>=6,<7'
+          python -m pip install -e .
+
+      - name: Run core tests
+        run: |
+          python -m pip install 'pytest>=8'
+          python -m pytest
+
+      - name: Smoke GUI under Xvfb
+        run: xvfb-run -a python scripts/smoke_gui.py
+
+      - name: Freeze LazuliNet
+        run: |
+          pyinstaller \
+            --noconfirm \
+            --clean \
+            --windowed \
+            --onedir \
+            --name LazuliNet \
+            run_gui.py
+          test -x dist/LazuliNet/LazuliNet
+
+      - name: Smoke frozen executable
+        run: |
+          timeout 12s xvfb-run -a dist/LazuliNet/LazuliNet > frozen-smoke.log 2>&1 || code=$?
+          code="${code:-0}"
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
+            cat frozen-smoke.log
+            exit "$code"
+          fi
+
+      - name: Build AppDir
+        run: |
+          rm -rf LazuliNet.AppDir
+          mkdir -p LazuliNet.AppDir/usr/lib/lazulinet
+          mkdir -p LazuliNet.AppDir/usr/share/applications
+          mkdir -p LazuliNet.AppDir/usr/share/icons/hicolor/scalable/apps
+          cp -a dist/LazuliNet/. LazuliNet.AppDir/usr/lib/lazulinet/
+          cp packaging/linux/AppRun LazuliNet.AppDir/AppRun
+          cp packaging/linux/lazulinet.desktop LazuliNet.AppDir/lazulinet.desktop
+          cp packaging/linux/lazulinet.desktop LazuliNet.AppDir/usr/share/applications/lazulinet.desktop
+          cp packaging/linux/lazulinet.svg LazuliNet.AppDir/lazulinet.svg
+          cp packaging/linux/lazulinet.svg LazuliNet.AppDir/usr/share/icons/hicolor/scalable/apps/lazulinet.svg
+          chmod +x LazuliNet.AppDir/AppRun
+
+      - name: Build AppImage
+        run: |
+          curl -L --fail --retry 3 \
+            -o appimagetool.AppImage \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool.AppImage
+          APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 VERSION=0.4.0 \
+            ./appimagetool.AppImage LazuliNet.AppDir LazuliNet-0.4.0-x86_64.AppImage
+          chmod +x LazuliNet-0.4.0-x86_64.AppImage
+
+      - name: Smoke AppImage
+        run: |
+          timeout 12s env APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a ./LazuliNet-0.4.0-x86_64.AppImage > appimage-smoke.log 2>&1 || code=$?
+          code="${code:-0}"
+          if [ "$code" -ne 0 ] && [ "$code" -ne 124 ]; then
+            cat appimage-smoke.log
+            exit "$code"
+          fi
+
+      - name: Build Debian package
+        run: |
+          rm -rf debroot
+          mkdir -p debroot/DEBIAN debroot/opt/lazulinet debroot/usr/bin debroot/usr/share/applications debroot/usr/share/icons/hicolor/scalable/apps
+          cp -a dist/LazuliNet/. debroot/opt/lazulinet/
+          cp packaging/linux/lazulinet.desktop debroot/usr/share/applications/lazulinet.desktop
+          cp packaging/linux/lazulinet.svg debroot/usr/share/icons/hicolor/scalable/apps/lazulinet.svg
+          cat > debroot/usr/bin/lazulinet <<'EOF'
+          #!/bin/sh
+          exec /opt/lazulinet/LazuliNet "$@"
+          EOF
+          chmod +x debroot/usr/bin/lazulinet
+          cat > debroot/DEBIAN/control <<'EOF'
+          Package: lazulinet
+          Version: 0.4.0
+          Section: net
+          Priority: optional
+          Architecture: amd64
+          Maintainer: Lamatech
+          Description: LazuliNet wireless discovery and diagnostics GUI
+           Cross-platform Kivy GUI for safe wireless discovery, session history,
+           reporting, logs, and system health.
+          EOF
+          dpkg-deb --build --root-owner-group debroot LazuliNet_0.4.0_amd64.deb
+
+      - name: Generate Linux checksums
+        run: |
+          sha256sum LazuliNet-0.4.0-x86_64.AppImage LazuliNet_0.4.0_amd64.deb > SHA256SUMS-linux.txt
+
+      - name: Upload Linux executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: lazulinet-linux-x86_64
+          path: |
+            LazuliNet-0.4.0-x86_64.AppImage
+            LazuliNet_0.4.0_amd64.deb
+            SHA256SUMS-linux.txt
+            frozen-smoke.log
+            appimage-smoke.log
+          if-no-files-found: error
+          retention-days: 30
+
+  android:
+    name: Android APK
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Buildozer prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git zip unzip autoconf libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev \
+            automake autopoint gettext
+          python -m pip install --upgrade pip virtualenv
+          python -m pip install buildozer setuptools 'cython==0.29.34'
+          rustc --version || true
+
+      - name: Cache Buildozer toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+          key: buildozer-${{ runner.os }}-api35-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-api35-
+
+      - name: Validate Android entrypoint
+        run: |
+          test -f main.py
+          python -m compileall -q main.py lazulinet
+
+      - name: Build debug APK
+        env:
+          BUILDOZER_LOG_LEVEL: "2"
+        run: |
+          yes | buildozer -v android debug
+          ls -lah bin/
+          test -n "$(find bin -maxdepth 1 -type f -name '*.apk' -print -quit)"
+
+      - name: Collect APK
+        run: |
+          mkdir -p release-android
+          cp bin/*.apk release-android/
+          (cd release-android && sha256sum *.apk > SHA256SUMS-android.txt)
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: lazulinet-android-apk
+          path: release-android/
+          if-no-files-found: error
+          retention-days: 30

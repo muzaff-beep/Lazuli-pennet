@@ -3,16 +3,17 @@ title = LazuliNet
 package.name = lazulinet
 package.domain = com.lamatech
 source.dir = .
-source.include_exts = py,kv,png,jpg,json,txt
-source.exclude_dirs = tests,scripts,.github
+source.include_exts = py,kv,png,jpg,jpeg,svg,json,txt
+source.exclude_dirs = tests,scripts,.github,modules,debian,android,packaging,dist,build,.git,.venv,.venv-linux
 version = 0.4.0
 requirements = python3,kivy,pyjnius
 orientation = portrait
 fullscreen = 0
-android.permissions = ACCESS_WIFI_STATE,CHANGE_WIFI_STATE,ACCESS_FINE_LOCATION,NEARBY_WIFI_DEVICES
+android.permissions = android.permission.ACCESS_WIFI_STATE,android.permission.CHANGE_WIFI_STATE,android.permission.ACCESS_FINE_LOCATION,android.permission.NEARBY_WIFI_DEVICES
 android.api = 35
 android.minapi = 26
-android.archs = arm64-v8a
+android.archs = arm64-v8a,armeabi-v7a
+android.accept_sdk_license = True
 
 [buildozer]
 log_level = 2
