@@ -19,7 +19,6 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
 
 from lazulinet.application.report_service import ReportService
-from lazulinet.application.legacy_migration import LegacyMigrationService
 from lazulinet.domain.models import ScanRequest, TaskState, WirelessMode
 from lazulinet.platform.factory import create_runtime
 
@@ -410,7 +409,6 @@ class ReportsScreen(BaseScreen):
         self.reporter = ReportService(app_ref.runtime.sessions)
         self.body.add_widget(button("Generate latest TXT", self.generate_txt, accent=True))
         self.body.add_widget(button("Export latest JSON", self.generate_json))
-        self.body.add_widget(button("Export session bundle ZIP", self.generate_bundle))
         self.status = label("", 13, MUTED)
         self.body.add_widget(self.status)
 
@@ -424,101 +422,6 @@ class ReportsScreen(BaseScreen):
     def generate_json(self, *_):
         session = self._latest()
         self.status.text = "No normalized session." if not session else f"Created {self.reporter.export_json(session.id)}"
-
-    def generate_bundle(self, *_):
-        session = self._latest()
-        self.status.text = "No normalized session." if not session else f"Created {self.reporter.export_bundle(session.id)}"
-
-
-class MigrationScreen(BaseScreen):
-    title = "Migration"
-
-    def __init__(self, app_ref, **kwargs):
-        super().__init__(app_ref, **kwargs)
-        self.subtitle("Import historical networks.json files into structured v0.4 sessions")
-        self.migration = LegacyMigrationService(app_ref.runtime.sessions)
-        default_root = os.getcwd() if not os.environ.get("ANDROID_ARGUMENT") else str(app_ref.runtime.sessions.root)
-        form = Surface(orientation="vertical", padding=dp(12), spacing=dp(8), size_hint_y=None, height=dp(102))
-        row = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(8))
-        caption = label("Legacy repository root", 12, MUTED)
-        caption.size_hint_x = 0.32
-        row.add_widget(caption)
-        self.root_input = text_input(default_root, hint="/path/to/Lazuli-pennet-main")
-        row.add_widget(self.root_input)
-        form.add_widget(row)
-        note = label("Migration only reads networks.json outputs; legacy modules are never executed.", 11, MUTED)
-        note.size_hint_y = None
-        note.height = dp(32)
-        form.add_widget(note)
-        self.body.add_widget(form)
-
-        actions = BoxLayout(size_hint_y=None, height=dp(46), spacing=dp(8))
-        actions.add_widget(button("Inspect", self.inspect, accent=True))
-        actions.add_widget(button("Import", self.import_candidates))
-        actions.add_widget(button("Verify sessions", self.verify))
-        self.body.add_widget(actions)
-
-        self.status = TextInput(
-            readonly=True,
-            multiline=True,
-            background_normal="",
-            background_active="",
-            background_color=PANEL,
-            foreground_color=TEXT,
-            font_size=dp(12),
-            padding=(dp(12), dp(12)),
-        )
-        self.body.add_widget(self.status)
-
-    def inspect(self, *_):
-        try:
-            candidates = self.migration.find_candidates(self.root_input.text.strip())
-            if not candidates:
-                self.status.text = "No known legacy networks.json outputs found."
-                return
-            lines = []
-            for path in candidates:
-                result = self.migration.inspect_file(path)
-                state = "valid" if result["valid"] else "invalid"
-                lines.append(f"{state:7}  {result['network_count']:4} network(s)  {result['path']}")
-                if result["error"]:
-                    lines.append(f"         {result['error']}")
-            self.status.text = "\n".join(lines)
-        except Exception as exc:
-            self.status.text = f"Inspection failed: {type(exc).__name__}: {exc}"
-
-    def import_candidates(self, *_):
-        try:
-            results = self.migration.import_root(self.root_input.text.strip())
-            if not results:
-                self.status.text = "No import candidates found."
-                return
-            lines = []
-            for result in results:
-                if result.get("error"):
-                    lines.append(f"ERROR  {result['source']}  {result['error']}")
-                elif result.get("skipped"):
-                    lines.append(f"SKIP   {result['network_count']} network(s)  already -> {result['session_id']}")
-                else:
-                    lines.append(f"IMPORTED {result['network_count']} network(s) -> {result['session_id']}")
-            self.status.text = "\n".join(lines)
-        except Exception as exc:
-            self.status.text = f"Import failed: {type(exc).__name__}: {exc}"
-
-    def verify(self, *_):
-        try:
-            results = self.app_ref.runtime.sessions.verify_all()
-            if not results:
-                self.status.text = "No sessions to verify."
-                return
-            self.status.text = "\n".join(
-                f"{'OK' if item['ok'] else 'FAIL':4}  {item['session_id']}  "
-                f"count={item['actual_network_count']}/{item['stored_network_count']}  "
-                f"artifacts={'ok' if item['artifacts_ok'] else 'missing'}"
-                for item in results
-            )
-        except Exception as exc:
-            self.status.text = f"Verification failed: {type(exc).__name__}: {exc}"
 
 
 class LogsScreen(BaseScreen):
@@ -577,11 +480,8 @@ class MoreScreen(BaseScreen):
     def __init__(self, app_ref, **kwargs):
         super().__init__(app_ref, **kwargs)
         self.subtitle("History, reporting, diagnostics, and runtime configuration")
-        items = [("Sessions", "sessions"), ("Reports", "reports"), ("Logs", "logs"), ("System", "system")]
-        if not os.environ.get("ANDROID_ARGUMENT"):
-            items.insert(2, ("Migration", "migration"))
-        menu = Surface(orientation="vertical", padding=dp(12), spacing=dp(8), size_hint_y=None, height=dp(54 * len(items) + 22))
-        for title, name in items:
+        menu = Surface(orientation="vertical", padding=dp(12), spacing=dp(8), size_hint_y=None, height=dp(230))
+        for title, name in (("Sessions", "sessions"), ("Reports", "reports"), ("Logs", "logs"), ("System", "system")):
             menu.add_widget(button(title, lambda _b, n=name: setattr(self.manager, "current", n)))
         self.body.add_widget(menu)
         self.body.add_widget(Widget())
@@ -616,7 +516,7 @@ class ResponsiveShell(BoxLayout):
         brand.size_hint_y = None
         brand.height = dp(58)
         nav.add_widget(brand)
-        items = [
+        for title, name in (
             ("Dashboard", "dashboard"),
             ("Interfaces", "interfaces"),
             ("Discovery", "discovery"),
@@ -625,13 +525,10 @@ class ResponsiveShell(BoxLayout):
             ("Reports", "reports"),
             ("Logs", "logs"),
             ("System", "system"),
-        ]
-        if not os.environ.get("ANDROID_ARGUMENT"):
-            items.insert(6, ("Migration", "migration"))
-        for title, name in items:
+        ):
             nav.add_widget(button(title, self._go(name)))
         nav.add_widget(Widget())
-        footer = label("v0.4\nSafe discovery shell", 10, MUTED)
+        footer = label("v0.3\nSafe discovery shell", 10, MUTED)
         footer.size_hint_y = None
         footer.height = dp(44)
         nav.add_widget(footer)
@@ -715,7 +612,6 @@ class LazuliNetApp(App):
             NetworksScreen(self, name="networks"),
             SessionsScreen(self, name="sessions"),
             ReportsScreen(self, name="reports"),
-            MigrationScreen(self, name="migration"),
             LogsScreen(self, name="logs"),
             SystemScreen(self, name="system"),
             MoreScreen(self, name="more"),

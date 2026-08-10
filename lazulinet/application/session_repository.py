@@ -113,36 +113,6 @@ class SessionRepository:
                 break
         return sessions
 
-
-    def verify(self, session_id: str) -> dict:
-        """Verify session metadata, normalized observations, and recorded artifacts."""
-        session = self.load_session(session_id)
-        session_dir = self._session_dir(session_id)
-        networks_path = session_dir / "networks.json"
-        networks = self.load_networks(session_id) if networks_path.exists() else []
-        artifacts = []
-        for value in session.raw_artifacts:
-            artifact_path = Path(value)
-            if not artifact_path.is_absolute():
-                artifact_path = session_dir / artifact_path
-            artifacts.append({"path": value, "exists": artifact_path.exists()})
-        count_matches = session.network_count == len(networks)
-        artifacts_ok = all(item["exists"] for item in artifacts)
-        return {
-            "session_id": session.id,
-            "status": session.status.value,
-            "networks_file": networks_path.exists(),
-            "stored_network_count": session.network_count,
-            "actual_network_count": len(networks),
-            "network_count_matches": count_matches,
-            "artifacts": artifacts,
-            "artifacts_ok": artifacts_ok,
-            "ok": count_matches and artifacts_ok and (networks_path.exists() or session.network_count == 0),
-        }
-
-    def verify_all(self, limit: int = 100) -> list[dict]:
-        return [self.verify(session.id) for session in self.list_sessions(limit)]
-
     def latest_completed(self) -> ScanSession | None:
         for session in self.list_sessions():
             if session.status == SessionStatus.COMPLETED:
