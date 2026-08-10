@@ -1,0 +1,12 @@
+pycache/
+*.pyc
+*.cap
+*.pcapng
+.22000
+.hccapx
+output/
+captures/
+debian/output/
+android/output/
+!debian/output/.gitkeep
+!android/output/.gitkeep
