@@ -31,3 +31,10 @@ without those tools and reports missing capabilities in System Health.
 The packaged Android source excludes the repository's legacy `modules/`,
 `debian/`, and `android/` trees. It packages only the shared safe GUI/core and
 its Android `WifiManager` adapter.
+
+## Reproducible Android toolchain
+
+Android CI is now pinned to python-for-Android release `v2026.05.09`
+(commit `58d21141f17c889bf8585f5665921d72028f8831`), NDK `28c`,
+Python `3.14.2`, Kivy `2.3.1`, PyJNIus `1.7.0`, and Buildozer `1.6.0`.
+See `TOOLCHAIN_LOCK.md`.

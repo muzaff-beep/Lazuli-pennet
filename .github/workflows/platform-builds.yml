@@ -194,8 +194,8 @@ jobs:
             wget \
             zip \
             zlib1g-dev
-          python -m pip install --upgrade pip virtualenv
-          python -m pip install buildozer setuptools 'cython==0.29.34'
+          python -m pip install 'pip==26.2.1' 'virtualenv==21.7.4'
+          python -m pip install 'buildozer==1.6.0' 'setuptools==84.0.0' 'cython==0.29.34'
           rustc --version || true
 
       - name: Cache Buildozer toolchain
@@ -212,6 +212,17 @@ jobs:
         run: |
           test -f main.py
           python -m compileall -q main.py lazulinet
+
+      - name: Verify pinned Android toolchain
+        shell: bash
+        run: |
+          grep -Fx 'requirements = python3==3.14.2,kivy==2.3.1,pyjnius==1.7.0' buildozer.spec
+          grep -Fx 'android.api = 35' buildozer.spec
+          grep -Fx 'android.ndk = 28c' buildozer.spec
+          grep -Fx 'android.ndk_api = 26' buildozer.spec
+          grep -Fx 'p4a.branch = develop' buildozer.spec
+          grep -Fx 'p4a.commit = 58d21141f17c889bf8585f5665921d72028f8831' buildozer.spec
+          grep -Fx 'p4a.bootstrap = sdl2' buildozer.spec
 
       - name: Build debug APK
         env:
