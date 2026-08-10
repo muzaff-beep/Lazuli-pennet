@@ -47,8 +47,13 @@ jobs:
         run: xvfb-run -a python scripts/smoke_gui.py
 
       - name: Freeze LazuliNet
+        env:
+          KIVY_NO_ARGS: "1"
         run: |
-          pyinstaller \
+          # Kivy's PyInstaller hook imports window providers while collecting
+          # submodules. Run the analysis under a virtual X server so the X11
+          # provider can initialize instead of aborting the build.
+          xvfb-run -a pyinstaller \
             --noconfirm \
             --clean \
             --windowed \
