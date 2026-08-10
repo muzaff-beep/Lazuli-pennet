@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lazulinet-gui"
-version = "0.3.0"
+version = "0.4.0"
 description = "Shared LazuliNet GUI/core for Debian and Android"
 requires-python = ">=3.10"
 dependencies = []

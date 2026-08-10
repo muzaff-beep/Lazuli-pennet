@@ -1,44 +1,42 @@
-# Implementation Status — v0.3
+# Implementation Status — v0.4
 
 ## Completed
 
-- Shared domain/application core retained from v0.2.
-- Session repository now preserves normalized partial results on cancellation.
-- Failed discovery sessions preserve raw diagnostic artifacts.
-- Debian discovery adapter has injectable command/process timing boundaries.
-- Debian sysfs fallback now filters out non-wireless interfaces when `iw` is unavailable.
-- Fake-process Debian integration tests cover:
-  - successful artifact parse;
-  - cooperative cancellation;
-  - process/stderr failure;
-  - successful process with missing artifact.
-- Android adapter has injectable `WifiManager` and timing boundaries.
-- Android tests cover cached/throttled result normalization, channel filtering, and cancellation.
-- Android System health reports Wi-Fi enabled and Location Services state where available.
-- Shared `lazulinet-safe` CLI added as the safe CLI-convergence reference.
-- GUI redesigned for responsive form factors:
-  - Debian/wide: sidebar + table/row views;
-  - Android/narrow: bottom nav + card views + More screen.
-- Live discovery progress/event status is surfaced in the GUI.
-- Networks/Reports can use preserved normalized data from cancelled sessions.
-- Debian graphical smoke script added.
-- Android Buildozer helper added.
-- GitHub Actions core + Xvfb/Kivy smoke workflow added.
-- Original-baseline migration guide added.
+- All v0.3 shared-core, Debian, Android, responsive GUI, CLI, smoke, and CI work retained.
+- Added `LegacyMigrationService` for one-way import of historical `networks.json` discovery output.
+- Added common legacy shape/field normalization and BSSID deduplication.
+- Added client/station list merging during duplicate normalization.
+- Added SHA-256 migration index; repeated source imports are skipped unless forced.
+- Original legacy JSON is copied into the new session's `raw/` artifacts.
+- Added session integrity verification:
+  - normalized networks file presence;
+  - stored vs actual network count;
+  - recorded artifact existence.
+- Added CLI commands:
+  - `migrate-legacy`;
+  - `verify`;
+  - `report --format bundle`.
+- Added Debian Migration GUI screen with Inspect / Import / Verify operations.
+- Added portable ZIP session bundle containing session metadata, normalized observations, verification output, and available raw artifacts.
+- Version metadata bumped to `0.4.0`.
 
 ## Validation in this environment
 
-- `python -m compileall -q lazulinet run_gui.py scripts/smoke_gui.py` — PASS.
-- `python -m pytest` — PASS, 20 tests.
-- `python -m lazulinet.cli --data-dir /tmp/lazulinet-cli-test sessions` — PASS.
-- No legacy security-sensitive module imports under the new `lazulinet/` package.
-- No `shell=True` calls under the new `lazulinet/` package.
+- `python -m compileall -q lazulinet tests run_gui.py` — PASS.
+- `python -m pytest -q` — PASS, **32 tests**.
+- End-to-end legacy CLI smoke: dry-run → import → verify → ZIP bundle — PASS.
+- `python -m pip wheel . --no-deps --no-build-isolation` — PASS.
+- Built wheel reinstalled into an isolated target and imported as `lazulinet.__version__ == 0.4.0` — PASS.
+- Migration tests cover field normalization, BSSID-keyed mappings, artifact preservation, dry-run behavior, candidate discovery, idempotency, and forced re-import.
+- Report bundle test verifies normalized state + verification + raw artifact inclusion.
+- No legacy security-sensitive module imports under `lazulinet/`.
+- No `shell=True` calls under `lazulinet/`.
 
 ## Environment limitation
 
-A real Kivy visual smoke run could not be executed in this container because Kivy is not preinstalled and the container cannot currently resolve PyPI. `xvfb-run` is available, so `scripts/debian_smoke.sh` is ready to execute unchanged on a Debian checkout once Kivy is installed.
+A real Kivy visual smoke run is still blocked in this container because Kivy is not installed and external package resolution was unavailable during the previous checkpoint. The provided Xvfb smoke script remains ready for a Debian environment with Kivy installed.
 
-The container also has no wireless test adapter or `airodump-ng`, so real radio discovery is not claimed as validated here.
+No physical Wi-Fi adapter or Android device is attached here, so hardware discovery and APK device behavior are not claimed as validated.
 
 ## External/device validation still required
 
@@ -46,25 +44,23 @@ The container also has no wireless test adapter or `airodump-ng`, so real radio 
 
 - Install Kivy and run `scripts/debian_smoke.sh`.
 - Attach a supported Wi-Fi adapter.
-- Verify actual interface mode changes.
-- Verify passive discovery start/cancel/complete on hardware.
-- Inspect one real generated airodump CSV against the normalized session output.
+- Verify actual interface mode state and passive discovery start/cancel/complete.
+- Compare at least one real airodump CSV against normalized session output.
+- Run `migrate-legacy --dry-run` and then import against the real original repository snapshot.
 
 ### Android
 
 - Build the debug APK with Buildozer.
-- Install on an API 26+ device, with priority on API 33+ validation.
-- Validate runtime Wi-Fi/location permission behavior.
-- Validate Location Services disabled/enabled diagnostics.
-- Validate throttled/cached scan-result behavior.
-- Verify responsive phone UI and OEM-specific scan result normalization.
+- Install on API 26+ device, prioritizing API 33+ validation.
+- Validate runtime Wi-Fi/location permission behavior and Location Services diagnostics.
+- Validate throttled/cached scan-result behavior on-device.
+- Verify responsive phone UI.
 
-## Next slice — v0.4
+## Next slice — v0.5
 
-1. Merge this package into the actual `Lazuli-pennet-main` checkout when the original ZIP/repository is available again.
-2. Add a one-way importer for old `networks.json` into session-scoped storage.
-3. Route the old root/Debian **safe scan/report** commands onto the shared application services.
-4. Run the Debian Kivy smoke test on a network-enabled/GUI-capable environment.
-5. Run real Wi-Fi adapter validation and capture representative CSV fixtures.
-6. Build and device-test the Android debug APK.
-7. Refine permissions/result delivery around Android scan callbacks based on device behavior.
+1. Merge the package into the actual `Lazuli-pennet-main` checkout when available.
+2. Route its old root/Debian safe scan/report entry points onto `lazulinet-safe` services.
+3. Run migration against real historical `networks.json` samples and retain them as regression fixtures.
+4. Perform a real Debian Kivy + wireless-adapter smoke pass.
+5. Build/install the Android debug APK and adapt scan result delivery to observed OEM/API behavior.
+6. Add signed/hashed bundle manifest fields if the report bundle will be used as an evidence archive rather than an operator convenience export.

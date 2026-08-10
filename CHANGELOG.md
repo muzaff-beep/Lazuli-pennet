@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.0 — 2026-08-11
+
+- Added one-way legacy `networks.json` migration service.
+- Added normalization for common legacy field names and payload shapes.
+- Added BSSID deduplication and client/station merging.
+- Added SHA-256 migration index and default idempotent import behavior.
+- Added `--force` migration override.
+- Preserve imported JSON as a raw session artifact.
+- Added session integrity verification.
+- Added `migrate-legacy` and `verify` CLI commands.
+- Added Debian Migration GUI screen with Inspect / Import / Verify actions.
+- Added TXT / JSON / portable ZIP report choices.
+- ZIP report bundles include session state, normalized observations, verification result, and available raw artifacts.
+- Expanded automated suite to 32 tests.
+
+Security-sensitive legacy operations remain outside the GUI and shared safe CLI registry.
+
 ## 0.3.0 — 2026-08-11
 
 - Added responsive Kivy shell with Debian sidebar and Android/narrow bottom navigation.
@@ -16,5 +33,3 @@
 - Added GitHub Actions core tests and Kivy/Xvfb GUI smoke job.
 - Added staged migration guide for the original `Lazuli-pennet-main` baseline.
 - Fixed Debian sysfs fallback so non-wireless interfaces are not presented as Wi-Fi interfaces.
-
-Security-sensitive legacy operations remain outside the GUI and shared safe CLI registry.
