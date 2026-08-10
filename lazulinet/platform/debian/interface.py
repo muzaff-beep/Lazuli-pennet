@@ -13,8 +13,9 @@ from lazulinet.domain.validation import validate_interface_name
 class DebianInterfaceAdapter:
     platform_name = "debian"
 
-    def __init__(self, runner=None):
+    def __init__(self, runner=None, sys_net_root: str | Path = "/sys/class/net"):
         self._runner = runner or subprocess.run
+        self._sys_net_root = Path(sys_net_root)
 
     def _require(self, binary: str) -> str:
         path = shutil.which(binary)
@@ -65,10 +66,13 @@ class DebianInterfaceAdapter:
                 interfaces = self.parse_iw_dev(result.stdout)
 
         by_name = {i.name: i for i in interfaces}
-        sys_net = Path("/sys/class/net")
+        sys_net = self._sys_net_root
         if sys_net.exists():
             for item in sorted(sys_net.iterdir()):
                 if item.name == "lo":
+                    continue
+                is_wireless = (item / "wireless").exists()
+                if item.name not in by_name and not is_wireless:
                     continue
                 iface = by_name.get(item.name) or WirelessInterface(name=item.name)
                 try:

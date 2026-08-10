@@ -48,14 +48,24 @@ class DiscoveryService:
             try:
                 networks, artifacts = self.adapter.discover(request, raw_dir, cancel_event, emit)
                 self.repo.add_artifacts(session.id, artifacts)
+
+                # Persist normalized partial results too. A cancelled discovery session is
+                # still useful for history/reporting and should not silently discard data.
+                self.repo.save_networks(session.id, networks)
+
                 if cancel_event.is_set():
                     self.repo.set_status(session.id, SessionStatus.CANCELLED, network_count=len(networks))
                     return {"session_id": session.id, "network_count": len(networks), "cancelled": True}
-                self.repo.save_networks(session.id, networks)
+
                 self.repo.set_status(session.id, SessionStatus.COMPLETED, network_count=len(networks))
                 emit("ObservationBatch", f"{len(networks)} network(s) normalized", 0.95, {"count": len(networks)})
                 return {"session_id": session.id, "network_count": len(networks), "cancelled": False}
-            except BaseException as exc:
+            except Exception as exc:
+                # Preserve any raw files that exist even when parsing/process execution
+                # fails so diagnosis is possible from the failed session.
+                raw_files = [path for path in raw_dir.rglob("*") if path.is_file()]
+                if raw_files:
+                    self.repo.add_artifacts(session.id, raw_files)
                 self.repo.set_status(session.id, SessionStatus.FAILED, error=f"{type(exc).__name__}: {exc}")
                 raise
 

@@ -87,9 +87,17 @@ class AirodumpCsvParser:
 class DebianDiscoveryAdapter:
     platform_name = "debian"
 
-    def __init__(self, parser: AirodumpCsvParser | None = None, popen_factory=None):
+    def __init__(
+        self,
+        parser: AirodumpCsvParser | None = None,
+        popen_factory=None,
+        command_builder=None,
+        poll_interval: float = 0.2,
+    ):
         self.parser = parser or AirodumpCsvParser()
         self._popen = popen_factory or subprocess.Popen
+        self._command_builder = command_builder or self._command
+        self._poll_interval = max(0.01, float(poll_interval))
 
     @staticmethod
     def _command(request: ScanRequest, prefix: Path) -> list[str]:
@@ -130,7 +138,7 @@ class DebianDiscoveryAdapter:
         request.channel = validate_channel(request.channel)
         raw_dir.mkdir(parents=True, exist_ok=True)
         prefix = raw_dir / "scan"
-        command = self._command(request, prefix)
+        command = self._command_builder(request, prefix)
         emit("LogLine", f"Starting passive discovery on {request.interface}", 0.05, None)
 
         process = self._popen(
@@ -147,7 +155,7 @@ class DebianDiscoveryAdapter:
                 if cancel_event.is_set() or elapsed >= request.duration_seconds:
                     break
                 emit("ProgressChanged", "Discovery running", min(0.9, 0.05 + 0.8 * elapsed / request.duration_seconds), None)
-                cancel_event.wait(0.2)
+                cancel_event.wait(self._poll_interval)
         finally:
             self._stop_process(process)
 

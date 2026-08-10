@@ -45,7 +45,14 @@ class AndroidWifiAdapter:
 
     platform_name = "android"
 
+    def __init__(self, wifi_manager_factory=None, wait_cap_seconds: float = 5.0, poll_interval: float = 0.2):
+        self._wifi_manager_factory = wifi_manager_factory
+        self._wait_cap_seconds = max(0.01, float(wait_cap_seconds))
+        self._poll_interval = max(0.01, float(poll_interval))
+
     def _wifi_manager(self):
+        if self._wifi_manager_factory is not None:
+            return self._wifi_manager_factory()
         try:
             from jnius import autoclass
             PythonActivity = autoclass("org.kivy.android.PythonActivity")
@@ -71,12 +78,41 @@ class AndroidWifiAdapter:
             raise UnsupportedMonitorMode("Packaged Android adapter does not expose monitor mode.")
         return self.list_interfaces()[0]
 
+    def _location_enabled(self) -> bool | None:
+        try:
+            from jnius import autoclass
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            Context = autoclass("android.content.Context")
+            BuildVersion = autoclass("android.os.Build$VERSION")
+            activity = PythonActivity.mActivity
+            manager = activity.getSystemService(Context.LOCATION_SERVICE)
+            if BuildVersion.SDK_INT >= 28:
+                return bool(manager.isLocationEnabled())
+            LocationManager = autoclass("android.location.LocationManager")
+            return bool(
+                manager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+                or manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+            )
+        except Exception:
+            return None
+
     def dependency_status(self) -> dict[str, str]:
         try:
-            self._wifi_manager()
-            return {"pyjnius": "available", "wifi_api": "available"}
+            wifi = self._wifi_manager()
+            location = self._location_enabled()
+            return {
+                "pyjnius": "available",
+                "wifi_api": "available",
+                "wifi_enabled": "yes" if bool(wifi.isWifiEnabled()) else "no",
+                "location_services": "enabled" if location is True else "disabled" if location is False else "unknown",
+            }
         except Exception:
-            return {"pyjnius": "missing", "wifi_api": "unavailable"}
+            return {
+                "pyjnius": "missing",
+                "wifi_api": "unavailable",
+                "wifi_enabled": "unknown",
+                "location_services": "unknown",
+            }
 
     def privilege_status(self) -> str:
         return "android runtime permissions"
@@ -91,10 +127,10 @@ class AndroidWifiAdapter:
                 "Android Wi-Fi scan permission/location prerequisites are not satisfied."
             ) from exc
 
-        wait_seconds = min(max(request.duration_seconds, 1), 5)
+        wait_seconds = min(max(float(request.duration_seconds), 0.01), self._wait_cap_seconds)
         started = time.monotonic()
         while time.monotonic() - started < wait_seconds:
-            if cancel_event.wait(0.2):
+            if cancel_event.wait(self._poll_interval):
                 return [], []
             progress = 0.1 + 0.6 * ((time.monotonic() - started) / wait_seconds)
             emit("ProgressChanged", "Waiting for Android scan results", min(progress, 0.7), {"scan_initiated": initiated})
@@ -111,14 +147,18 @@ class AndroidWifiAdapter:
             if cancel_event.is_set():
                 break
             capabilities = str(getattr(result, "capabilities", "") or "")
+            frequency = int(getattr(result, "frequency", 0) or 0)
+            channel = _frequency_to_channel(frequency)
+            if request.channel is not None and channel != request.channel:
+                continue
             observations.append(NetworkObservation(
                 bssid=str(getattr(result, "BSSID", "") or "").upper(),
                 essid=str(getattr(result, "SSID", "") or ""),
-                channel=_frequency_to_channel(int(getattr(result, "frequency", 0) or 0)),
+                channel=channel,
                 privacy=capabilities,
                 signal_power=int(getattr(result, "level", 0) or 0),
                 platform_metadata={
-                    "frequency_mhz": int(getattr(result, "frequency", 0) or 0),
+                    "frequency_mhz": frequency,
                     "android_scan_initiated": initiated,
                 },
             ))

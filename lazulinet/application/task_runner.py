@@ -105,7 +105,7 @@ class TaskRunner:
                 snap = handle.snapshot()
                 final_kind = "TaskCancelled" if snap.state == TaskState.CANCELLED else "TaskCompleted"
                 emit(final_kind, f"{kind} {snap.state.value}", 1.0, {"result": result})
-            except BaseException as exc:
+            except Exception as exc:
                 handle._set_error(exc)
                 snap = handle.snapshot()
                 final_kind = "TaskCancelled" if snap.state == TaskState.CANCELLED else "TaskFailed"

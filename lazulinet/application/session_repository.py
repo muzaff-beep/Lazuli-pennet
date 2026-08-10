@@ -119,6 +119,16 @@ class SessionRepository:
                 return session
         return None
 
+    def has_networks(self, session_id: str) -> bool:
+        return (self._session_dir(session_id) / "networks.json").exists()
+
+    def latest_with_networks(self) -> ScanSession | None:
+        """Return the newest session with normalized observations, including cancelled scans."""
+        for session in self.list_sessions():
+            if self.has_networks(session.id):
+                return session
+        return None
+
     @staticmethod
     def _write_json(path: Path, payload) -> None:
         try:

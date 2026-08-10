@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lazulinet-gui"
-version = "0.2.0"
+version = "0.3.0"
 description = "Shared LazuliNet GUI/core for Debian and Android"
 requires-python = ">=3.10"
 dependencies = []
@@ -16,3 +16,6 @@ dev = ["pytest>=8"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[project.scripts]
+lazulinet-safe = "lazulinet.cli:main"
