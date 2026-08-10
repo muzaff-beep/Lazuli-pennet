@@ -1,4 +1,4 @@
-from lazulinet_gui.app import LazuliNetGUI
+from lazulinet.presentation.app import LazuliNetApp
 
 if __name__ == "__main__":
-    LazuliNetGUI().run()
+    LazuliNetApp().run()
