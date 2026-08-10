@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: lazulinet-gui
+Version: 0.4.0
+Summary: Shared LazuliNet GUI/core for Debian and Android
+Requires-Python: >=3.10
+Provides-Extra: gui
+Requires-Dist: kivy>=2.3.0; extra == "gui"
+Provides-Extra: dev
+Requires-Dist: pytest>=8; extra == "dev"

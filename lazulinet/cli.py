@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from lazulinet.application.report_service import ReportService
+from lazulinet.application.legacy_migration import LegacyMigrationService
 from lazulinet.domain.models import ScanRequest, TaskState
 from lazulinet.platform.factory import create_runtime
 
@@ -36,9 +37,19 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--duration", type=int, default=30)
     scan.add_argument("--channel", type=int, default=None)
 
+    migrate = sub.add_parser("migrate-legacy", help="Import legacy networks.json files into structured sessions.")
+    migrate.add_argument("legacy_root", type=Path)
+    migrate.add_argument("--interface", default="legacy-import")
+    migrate.add_argument("--dry-run", action="store_true")
+    migrate.add_argument("--force", action="store_true", help="Import even if the source hash was already migrated.")
+
+    verify = sub.add_parser("verify", help="Verify session metadata, counts, and recorded artifacts.")
+    verify.add_argument("session_id", nargs="?", default=None)
+    verify.add_argument("--limit", type=int, default=100)
+
     report = sub.add_parser("report", help="Generate a report for a saved session.")
     report.add_argument("session_id", nargs="?", default=None)
-    report.add_argument("--format", choices=("txt", "json"), default="txt")
+    report.add_argument("--format", choices=("txt", "json", "bundle"), default="txt")
     return parser
 
 
@@ -58,13 +69,35 @@ def main(argv: list[str] | None = None) -> int:
         _print_json([session.to_dict() for session in runtime.sessions.list_sessions(max(1, args.limit))])
         return 0
 
+    if args.command == "migrate-legacy":
+        migration = LegacyMigrationService(runtime.sessions)
+        results = migration.import_root(args.legacy_root, interface=args.interface, dry_run=args.dry_run, force=args.force)
+        _print_json(results)
+        if not results:
+            return 2
+        return 1 if any(result.get("error") for result in results) else 0
+
+    if args.command == "verify":
+        if args.session_id:
+            result = runtime.sessions.verify(args.session_id)
+            _print_json(result)
+            return 0 if result["ok"] else 1
+        results = runtime.sessions.verify_all(max(1, args.limit))
+        _print_json(results)
+        return 0 if all(result["ok"] for result in results) else 1
+
     if args.command == "report":
         session = runtime.sessions.load_session(args.session_id) if args.session_id else runtime.sessions.latest_with_networks()
         if not session:
             print("No normalized session is available.", file=sys.stderr)
             return 2
         reporter = ReportService(runtime.sessions)
-        path = reporter.generate_text(session.id) if args.format == "txt" else reporter.export_json(session.id)
+        if args.format == "txt":
+            path = reporter.generate_text(session.id)
+        elif args.format == "json":
+            path = reporter.export_json(session.id)
+        else:
+            path = reporter.export_bundle(session.id)
         print(path)
         return 0
 

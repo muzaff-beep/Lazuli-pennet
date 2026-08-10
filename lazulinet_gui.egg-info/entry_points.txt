@@ -1,0 +1,2 @@
+[console_scripts]
+lazulinet-safe = lazulinet.cli:main

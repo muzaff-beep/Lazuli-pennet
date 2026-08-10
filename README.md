@@ -1,8 +1,8 @@
-# LazuliNet GUI Development — v0.3
+# LazuliNet GUI Development — v0.4
 
-A shared GUI/application layer for the Debian and Android LazuliNet runtimes, based on the 2026-08-10 architecture baseline.
+A shared GUI/application layer for Debian and Android LazuliNet runtimes, continuing the 2026-08-10 architecture baseline.
 
-## Architecture implemented
+## Architecture
 
 ```text
 Kivy GUI / lazulinet-safe CLI
@@ -18,28 +18,43 @@ Debian adapters    Android adapter
 Linux tooling     WifiManager/PyJNIus
             ↓
    Session Repository
+            ↓
+ Legacy one-way importer
 ```
 
 The GUI and safe CLI do not call the legacy root/Debian scanner modules or Android Termux monolith directly.
 
-## v0.3 functionality
+## v0.4 functionality
 
 ### Shared core
 
 - Typed `WirelessInterface`, `NetworkObservation`, `ScanRequest`, `ScanSession`, `TaskEvent`, and state enums.
 - Typed validation/errors.
 - Session-scoped atomic JSON storage.
-- Raw artifact preservation on completed, cancelled, and failed discovery lifecycles.
-- Partial normalized observations are retained on cancellation.
+- Raw artifact preservation on completed, cancelled, failed, and imported sessions.
+- Partial normalized observations retained on cancellation.
 - Cancellable background `TaskRunner` with structured events.
-- TXT and JSON reporting.
+- Session verification for observation counts and recorded artifacts.
+- TXT, JSON, and portable ZIP session reports.
+
+### Legacy data migration
+
+v0.4 adds a one-way compatibility layer for historical safe discovery output:
+
+- scans known old `networks.json` locations;
+- accepts list, `{ "networks": [...] }`, BSSID-keyed mapping, and common legacy field names;
+- normalizes BSSID, ESSID/SSID, channel, security, signal, counters, and client/station lists;
+- deduplicates repeated BSSID records and merges clients;
+- copies the original JSON into the new session `raw/` directory;
+- uses SHA-256 source indexing so repeated imports are skipped by default;
+- supports explicit `--force` re-import;
+- never imports or executes legacy Python modules.
 
 ### Debian
 
-- `iw` interface inspection plus `/sys/class/net` fallback.
+- `iw` interface inspection plus wireless-only `/sys/class/net` fallback.
 - Managed/monitor state handling through validated argv-only process calls.
 - Dependency and privilege preflight.
-- Wireless-only sysfs fallback (Ethernet interfaces are not surfaced as Wi-Fi adapters).
 - Passive `airodump-ng` discovery adapter.
 - Proper Python CSV parsing, including quoted ESSIDs containing commas and station/client association.
 - Injectable process/command boundary for deterministic integration testing.
@@ -50,8 +65,8 @@ The GUI and safe CLI do not call the legacy root/Debian scanner modules or Andro
 - Runtime Wi-Fi permission request surface.
 - Wi-Fi enabled and Location Services health state.
 - SSID/BSSID/channel/signal normalization.
-- Optional channel filtering over returned observations.
-- Tolerates a throttled/failed `startScan()` request by marking whether the scan was initiated and normalizing available scan results.
+- Optional channel filtering.
+- Cached/throttled scan-result behavior is represented explicitly in normalized metadata.
 
 ### GUI
 
@@ -61,7 +76,8 @@ One `ScreenManager` powers both form factors.
 
 - full left sidebar;
 - desktop network/session table layouts;
-- wider interface control rows.
+- wider interface control rows;
+- Migration screen for old `networks.json` discovery output.
 
 **Android / narrow window**
 
@@ -78,27 +94,39 @@ Screens:
 4. Networks
 5. Sessions
 6. Reports
-7. Logs
-8. System
-9. Mobile More navigation
+7. Migration (Debian)
+8. Logs
+9. System
+10. Mobile More navigation
 
-## Safe CLI convergence seam
+## Shared safe CLI
 
-The new CLI calls the exact same services as the GUI:
+The CLI calls the same services as the GUI:
 
 ```bash
 python -m lazulinet.cli health
 python -m lazulinet.cli interfaces
 python -m lazulinet.cli sessions
 python -m lazulinet.cli scan wlan0 --duration 30
-python -m lazulinet.cli report
+python -m lazulinet.cli report --format bundle
+python -m lazulinet.cli verify
+python -m lazulinet.cli migrate-legacy /path/to/Lazuli-pennet-main --dry-run
+python -m lazulinet.cli migrate-legacy /path/to/Lazuli-pennet-main
 ```
 
-When installed as a package:
+Installed entry point:
 
 ```bash
 lazulinet-safe health
 ```
+
+A prebuilt pure-Python core wheel is included in `dist/` for environments where the core/CLI should be installed before GUI dependencies:
+
+```bash
+python -m pip install dist/lazulinet_gui-0.4.0-py3-none-any.whl
+```
+
+Kivy remains an optional GUI dependency and is not embedded in that wheel.
 
 ## Debian development
 
@@ -118,7 +146,7 @@ Real passive discovery expects the applicable Debian runtime dependencies, notab
 ./scripts/debian_smoke.sh
 ```
 
-It runs compilation, unit/integration tests, Kivy import, and an Xvfb GUI construction test at both desktop and phone dimensions.
+It runs compilation, tests, Kivy import, and an Xvfb GUI construction test at desktop and phone dimensions.
 
 ## Android development
 
@@ -132,9 +160,7 @@ Equivalent direct command:
 buildozer android debug
 ```
 
-`buildozer.spec` targets API 35, minimum API 26, arm64-v8a, and declares Wi-Fi/location permissions required by the current adapter path.
-
-Device validation still needs to verify runtime permissions, Location Services, scan throttling/cached-result behavior, and normalization on the actual OEM Android build.
+`buildozer.spec` targets API 35, minimum API 26, arm64-v8a, and declares the Wi-Fi/location permissions required by the current adapter path.
 
 ## Tests
 
@@ -143,33 +169,16 @@ python -m compileall -q lazulinet run_gui.py scripts/smoke_gui.py
 python -m pytest
 ```
 
-Current suite covers:
-
-- parser edge cases;
-- AP/client association;
-- validation;
-- session round-trip;
-- cancelled partial persistence;
-- failed raw-artifact preservation;
-- task completion/cancellation;
-- Debian process success/cancel/failure/no-artifact paths;
-- Android channel conversion;
-- Android fake-WifiManager normalization/filtering/cancellation;
-- safe CLI session/report behavior.
+Current suite covers parser edge cases, task cancellation, session persistence/verification, Debian process lifecycle, Android fake-`WifiManager` behavior, safe CLI behavior, legacy migration/idempotency, and report bundle composition.
 
 ## CI
 
-`.github/workflows/gui-core.yml` contains:
-
-- Python 3.10 + 3.12 core tests;
-- Kivy install + Xvfb responsive GUI smoke test.
+`.github/workflows/gui-core.yml` contains Python 3.10/3.12 core tests and a Kivy + Xvfb responsive GUI smoke job.
 
 ## Original repository migration
 
-See [`MIGRATION_v0.3.md`](MIGRATION_v0.3.md).
-
-The migration is staged intentionally: add the new package beside the legacy code, route safe CLI functions through the shared services, validate Debian/Android, then retire duplicated safe scanner/reporter code.
+See [`MIGRATION_v0.4.md`](MIGRATION_v0.4.md).
 
 ## Security boundary
 
-The GUI/service registry does not import or expose the repository's legacy deauthentication, credential capture/cracking, WPS/PMKID, or rogue-AP modules. v0.3 is limited to interface administration, passive discovery, persistence, reporting, logs, and health checks.
+The GUI/service registry does not import or expose the repository's legacy deauthentication, credential capture/cracking, WPS/PMKID, or rogue-AP modules. v0.4 remains limited to interface administration, passive discovery, persistence, reporting, migration of historical discovery output, logs, and health checks.
