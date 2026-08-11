@@ -220,7 +220,7 @@ jobs:
           grep -Fx 'android.api = 35' buildozer.spec
           grep -Fx 'android.ndk = 28c' buildozer.spec
           grep -Fx 'android.ndk_api = 26' buildozer.spec
-          grep -Fx 'p4a.branch = develop' buildozer.spec
+          grep -Fx 'p4a.branch = v2026.05.09' buildozer.spec
           grep -Fx 'p4a.commit = 58d21141f17c889bf8585f5665921d72028f8831' buildozer.spec
           grep -Fx 'p4a.bootstrap = sdl2' buildozer.spec
 

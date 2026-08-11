@@ -20,7 +20,7 @@ android.accept_sdk_license = True
 # Reproducible python-for-Android toolchain.
 # Stable release v2026.05.09 resolves to commit:
 # 58d21141f17c889bf8585f5665921d72028f8831
-p4a.branch = develop
+p4a.branch = v2026.05.09
 p4a.commit = 58d21141f17c889bf8585f5665921d72028f8831
 p4a.bootstrap = sdl2
 

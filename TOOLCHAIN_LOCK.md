@@ -6,7 +6,7 @@ The Android build is pinned for reproducibility.
 
 - Release: `v2026.05.09`
 - Release commit: `58d21141f17c889bf8585f5665921d72028f8831`
-- Branch used for checkout: `develop`
+- Checkout ref: release tag `v2026.05.09`
 - Bootstrap: `sdl2`
 
 The release includes Android API 35 updates and NDK r28c compatibility work.
@@ -42,3 +42,13 @@ The GitHub Actions Android job pins:
 
 `actions/cache` hashes `buildozer.spec`, so changing any Android toolchain lock
 causes a new Buildozer cache key.
+
+## Why the release tag is used
+
+Buildozer invokes `git clone -b <p4a.branch> --single-branch` before applying
+`p4a.commit`. Pinning the release commit while cloning `develop` failed with
+`fatal: Could not parse object` because that clone did not expose the release
+commit to the local object database.
+
+The build now clones `v2026.05.09` directly and then resets to the exact
+release commit `58d21141f17c889bf8585f5665921d72028f8831`.
